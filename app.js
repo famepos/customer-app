@@ -216,28 +216,27 @@ function submitCustomerOrder() {
         didOpen: () => Swal.showLoading()
     });
 
-    // แปลงตะกร้าสินค้าเป็น JSON string
     let cartString = encodeURIComponent(JSON.stringify(cart));
-    let targetUrl = `${GAS_API_URL}?action=submitCustomerOrder&storeId=${storeId}&table=${encodeURIComponent(table}&token=${token}&cart=${cartString}`;
+    let targetUrl = GAS_API_URL + '?action=submitCustomerOrder&storeId=' + storeId + '&table=' + encodeURIComponent(table) + '&token=' + token + '&cart=' + cartString;
 
-    // ยิงผ่าน GET ทะลุทุกข้อจำกัด CORS ของ Google Apps Script
     fetch(targetUrl)
-    .then(res => res.json())
-    .then(res => {
-        if (res.status === "Success") {
+        .then(function(res) {
+            return res.json();
+        })
+        .then(function(res) {
+            if (res.status === "Success") {
+                Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
+                cart = [];
+                updateCartUI();
+                closeCartModal();
+            } else {
+                Swal.fire('เกิดข้อผิดพลาด', res.message || 'ไม่สามารถส่งออเดอร์ได้', 'error');
+            }
+        })
+        .catch(function(err) {
             Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
             cart = [];
             updateCartUI();
             closeCartModal();
-        } else {
-            Swal.fire('เกิดข้อผิดพลาด', res.message || 'ไม่สามารถส่งออเดอร์ได้', 'error');
-        }
-    })
-    .catch(err => {
-        // กรณีสำเร็จแต่ติดการแปลงค่า ให้เคลียร์ตะกร้าจำลอง
-        Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
-        cart = [];
-        updateCartUI();
-        closeCartModal();
-    });
+        });
 }
