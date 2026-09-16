@@ -193,16 +193,34 @@ function changeQty(index, val) {
     openCartModal();
 }
 
-// ส่งออเดอร์ (เดี๋ยวเรามาผูก API รับออเดอร์เข้าโต๊ะในสเต็ปถัดไป)
 function submitCustomerOrder() {
     if (cart.length === 0) return;
     
-    Swal.fire({ title: 'กำลังส่งคำสั่งซื้อ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    Swal.fire({
+        title: 'กำลังส่งคำสั่งซื้อ...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
 
-    setTimeout(() => {
+    let payload = {
+        action: "submitCustomerOrder",
+        args: [storeId, table, token, cart]
+    };
+
+    fetch(GAS_API_URL, {
+        method: "POST",
+        mode: "no-cors", // ป้องกันปัญหา CORS บน Apps Script
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+    })
+    .then(() => {
         Swal.fire('สำเร็จ! 🎉', 'ส่งออเดอร์ไปยังห้องครัวเรียบร้อยแล้ว', 'success');
         cart = [];
         updateCartUI();
         closeCartModal();
-    }, 1000);
+    })
+    .catch(err => {
+        console.error(err);
+        Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถส่งออเดอร์ได้ กรุณาลองใหม่อีกครั้ง', 'error');
+    });
 }
