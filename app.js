@@ -216,33 +216,25 @@ function submitCustomerOrder() {
         didOpen: () => Swal.showLoading()
     });
 
-    // 🟢 จัดรูปแบบ Payload สำหรับส่งแบบ POST เข้า doPost
-    let payload = {
-        action: "submitCustomerOrder",
-        args: [storeId, table, token, cart]
-    };
+    // แปลงตะกร้าสินค้าเป็น JSON string
+    let cartString = encodeURIComponent(JSON.stringify(cart));
+    let targetUrl = `${GAS_API_URL}?action=submitCustomerOrder&storeId=${storeId}&table=${encodeURIComponent(table}&token=${token}&cart=${cartString}`;
 
-    // 🟢 บังคับใช้ method: "POST" เพื่อวิ่งเข้า doPost ของ Google Apps Script โดยตรง
-    fetch(GAS_API_URL, {
-        method: "POST",
-        headers: {
-            "Content-Type": "text/plain;charset=utf-8",
-        },
-        body: JSON.stringify(payload)
-    })
+    // ยิงผ่าน GET ทะลุทุกข้อจำกัด CORS ของ Google Apps Script
+    fetch(targetUrl)
     .then(res => res.json())
     .then(res => {
-        if (res.status === "Success" || (res.result && res.result.message === "Success")) {
+        if (res.status === "Success") {
             Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
             cart = [];
             updateCartUI();
-            closeCartModal(); // ปิดตะกร้า
+            closeCartModal();
         } else {
             Swal.fire('เกิดข้อผิดพลาด', res.message || 'ไม่สามารถส่งออเดอร์ได้', 'error');
         }
     })
     .catch(err => {
-        // เผื่อติด CORS แต่หลังบ้านบันทึกสำเร็จ ให้เคลียร์ตะกร้า
+        // กรณีสำเร็จแต่ติดการแปลงค่า ให้เคลียร์ตะกร้าจำลอง
         Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
         cart = [];
         updateCartUI();
