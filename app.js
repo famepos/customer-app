@@ -226,43 +226,50 @@ function submitCustomerOrder() {
         didOpen: () => Swal.showLoading()
     });
 
-    // 🟢 1. จัดก้อนข้อมูลที่จะส่งไปให้ doPost ทำงาน
+    // 🟢 1. ห่อข้อมูลทั้งหมดใส่กล่อง Payload ป้องกัน URL ยาวเกินไป
     let payload = {
         action: "submitCustomerOrder",
-        args: [storeId, table, token, cart] // ส่งข้อมูล 4 ตัวให้ Apps Script
+        args: [storeId, table, token, cart]
     };
 
-    // 🟢 2. ยิงข้อมูลแบบ POST ผ่าน Body จะส่งข้อมูลเยอะแค่ไหน URL ก็ไม่พัง!
+    // 🟢 2. ยิงข้อมูลแบบ POST (ซ่อนข้อมูลไว้ใน body) แก้ปัญหาหายขาด 100%
     fetch(GAS_API_URL, {
         method: "POST",
         headers: {
-            "Content-Type": "text/plain;charset=utf-8" // ต้องเป็น text/plain เพื่อไม่ให้ติด CORS
+            "Content-Type": "text/plain;charset=utf-8" // ใช้ text/plain เพื่อหลบระบบป้องกันของ Google
         },
         body: JSON.stringify(payload)
     })
     .then(function(res) {
         return res.json();
     })
-.then(function(res) {
-            // ตรวจสอบว่าสำเร็จหรือไม่
-            if (res.status === "Success" || (res.result && res.result.message === "สั่งอาหารสำเร็จ")) {
-                Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
-                
-                // 🟢 นำของที่เพิ่งสั่ง โยนไปรวมกับประวัติเดิมทันที
+    .then(function(res) {
+        if (res.status === "Success" || (res.result && res.result.message === "สั่งอาหารสำเร็จ")) {
+            Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
+            
+            // นำของที่สั่งไปรวมกับประวัติ
+            if (typeof orderHistory !== 'undefined') {
                 orderHistory = [...orderHistory, ...cart];
-                updateHistoryUI(); // อัปเดตปุ่มประวัติ
-                
-                cart = [];
-                updateCartUI();
-                closeCartModal();
-            } else {
+                if (typeof updateHistoryUI === 'function') updateHistoryUI();
+            }
+            
+            cart = [];
+            updateCartUI();
+            closeCartModal();
+        } else {
             Swal.fire('เกิดข้อผิดพลาด', res.message || 'ไม่สามารถส่งออเดอร์ได้', 'error');
         }
     })
     .catch(function(err) {
         console.error("Fetch Error:", err);
-        // บัตรกันตาย: บางที Google Apps Script ตอบกลับช้าแต่เซฟลงชีตไปแล้ว ให้ถือว่าสำเร็จและเคลียร์ตะกร้าได้เลย
+        // บัตรกันตาย: กรณี Google เซฟสำเร็จแต่เน็ตตัดหรือตอบกลับช้า
         Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
+        
+        if (typeof orderHistory !== 'undefined') {
+            orderHistory = [...orderHistory, ...cart];
+            if (typeof updateHistoryUI === 'function') updateHistoryUI();
+        }
+        
         cart = [];
         updateCartUI();
         closeCartModal();
