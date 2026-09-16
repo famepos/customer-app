@@ -243,14 +243,19 @@ function submitCustomerOrder() {
     .then(function(res) {
         return res.json();
     })
-    .then(function(res) {
-        // ตรวจสอบว่าสำเร็จหรือไม่
-        if (res.status === "Success" || (res.result && res.result.message === "สั่งอาหารสำเร็จ")) {
-            Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
-            cart = [];
-            updateCartUI();
-            closeCartModal();
-        } else {
+.then(function(res) {
+            // ตรวจสอบว่าสำเร็จหรือไม่
+            if (res.status === "Success" || (res.result && res.result.message === "สั่งอาหารสำเร็จ")) {
+                Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
+                
+                // 🟢 นำของที่เพิ่งสั่ง โยนไปรวมกับประวัติเดิมทันที
+                orderHistory = [...orderHistory, ...cart];
+                updateHistoryUI(); // อัปเดตปุ่มประวัติ
+                
+                cart = [];
+                updateCartUI();
+                closeCartModal();
+            } else {
             Swal.fire('เกิดข้อผิดพลาด', res.message || 'ไม่สามารถส่งออเดอร์ได้', 'error');
         }
     })
@@ -261,5 +266,64 @@ function submitCustomerOrder() {
         cart = [];
         updateCartUI();
         closeCartModal();
+    });
+}
+
+// ==========================================
+// 📜 ระบบประวัติการสั่งอาหาร (ที่ส่งเข้าครัวไปแล้ว)
+// ==========================================
+function updateHistoryUI() {
+    let btnHistory = document.getElementById('btnOrderHistory');
+    if (!btnHistory) return;
+
+    if (orderHistory.length > 0) {
+        let totalQty = orderHistory.reduce((sum, item) => sum + item.qty, 0);
+        let totalPrice = orderHistory.reduce((sum, item) => sum + (item.price * item.qty), 0);
+        
+        document.getElementById('historyQtyCount').innerText = totalQty;
+        document.getElementById('historyTotalPrice').innerText = '฿' + totalPrice.toFixed(2);
+        btnHistory.classList.remove('hidden'); // แสดงปุ่มเมื่อมีประวัติ
+    } else {
+        btnHistory.classList.add('hidden'); // ซ่อนปุ่มเมื่อไม่มีประวัติ (เช่น เพิ่งเปิดโต๊ะ หรือ เช็คบิลแล้ว)
+    }
+}
+
+function openOrderHistoryModal() {
+    if (orderHistory.length === 0) return;
+
+    let grandTotal = 0;
+    let htmlContent = '<div class="text-left space-y-3 max-h-[60vh] overflow-y-auto pr-2 mt-2">';
+    
+    orderHistory.forEach(item => {
+        let lineTotal = item.price * item.qty;
+        grandTotal += lineTotal;
+        
+        let priceTag = item.price === 0 
+            ? `<span class="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-md font-bold">ฟรี</span>` 
+            : `<span class="font-bold text-slate-800">฿${lineTotal.toFixed(2)}</span>`;
+
+        htmlContent += `
+        <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+            <div>
+                <div class="font-bold text-sm text-slate-800">${item.name}</div>
+                <div class="text-xs text-slate-500">${item.qty} ${item.unit || 'ชิ้น'}</div>
+            </div>
+            <div>${priceTag}</div>
+        </div>`;
+    });
+
+    htmlContent += `
+        <div class="flex justify-between items-center pt-3 mt-2 bg-orange-50 p-3 rounded-xl border border-orange-100">
+            <div class="font-bold text-orange-800 text-sm">ยอดรวมรายการที่สั่งไปแล้ว:</div>
+            <div class="text-xl font-black text-orange-600">฿${grandTotal.toFixed(2)}</div>
+        </div>
+    </div>`;
+
+    Swal.fire({
+        title: '📜 อาหารที่สั่งเข้าครัวไปแล้ว',
+        html: htmlContent,
+        confirmButtonText: 'ปิดหน้าต่าง',
+        confirmButtonColor: '#ea580c',
+        width: '400px'
     });
 }
