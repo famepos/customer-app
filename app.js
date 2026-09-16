@@ -5,6 +5,7 @@ let storeInfo = {};
 let allProducts = [];
 let cart = [];
 let currentCategory = 'ทั้งหมด';
+let orderHistory = [];
 
 // ดึงค่าจาก URL ที่สแกน QR มา (storeId, table, token)
 const urlParams = new URLSearchParams(window.location.search);
@@ -37,6 +38,15 @@ function loadCustomerMenu() {
                 allProducts = res.data.products || [];
                 buffetPackages = res.data.buffetPackages || [];
                 tableSession = res.data.tableSession || null;
+
+                // 🟢 ดึงรายการอาหารที่ "สั่งเข้าครัวไปแล้ว" มาเป็นประวัติ
+                if (tableSession && tableSession.cart && tableSession.cart.length > 0) {
+                    orderHistory = tableSession.cart;
+                } else {
+                    orderHistory = []; // ถ้าแคชเชียร์เช็คบิล/เคลียร์โต๊ะ ประวัติจะว่างเปล่าอัตโนมัติ
+                }
+                updateHistoryUI(); // อัปเดตปุ่มประวัติบนหน้าจอ
+                
 
                 if (storeInfo.storeName) document.getElementById('storeName').innerText = storeInfo.storeName;
                 
