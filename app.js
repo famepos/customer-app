@@ -39,18 +39,26 @@ function loadCustomerMenu() {
                 buffetPackages = res.data.buffetPackages || [];
                 tableSession = res.data.tableSession || null;
 
-                // 🟢 ดึงรายการอาหารที่ "สั่งเข้าครัวไปแล้ว" มาเป็นประวัติ
+                // 🛑 1. ดักจับคนแอบสแกนบิลเก่า: ถ้าโต๊ะถูกเคลียร์แล้ว หรือรหัส Token ไม่ตรง ให้บล็อกทันที!
+                if (!tableSession || tableSession.token !== token) {
+                    if (typeof lockScreenAfterCheckout === 'function') lockScreenAfterCheckout();
+                    return; // หยุดทำงาน ไม่แสดงเมนูอาหารให้สั่ง
+                }
+
+                // 🕵️‍♂️ 2. สั่งให้สายลับเริ่มแอบเช็คสถานะโต๊ะเผื่อแคชเชียร์กดเคลียร์
+                if (typeof startTableWatcher === 'function') startTableWatcher();
+
+                // 🟢 3. ดึงรายการอาหารที่ "สั่งเข้าครัวไปแล้ว" มาเป็นประวัติ
                 if (tableSession && tableSession.cart && tableSession.cart.length > 0) {
                     orderHistory = tableSession.cart;
                 } else {
                     orderHistory = []; // ถ้าแคชเชียร์เช็คบิล/เคลียร์โต๊ะ ประวัติจะว่างเปล่าอัตโนมัติ
                 }
-                updateHistoryUI(); // อัปเดตปุ่มประวัติบนหน้าจอ
+                if (typeof updateHistoryUI === 'function') updateHistoryUI(); // อัปเดตปุ่มประวัติบนหน้าจอ
                 
-
                 if (storeInfo.storeName) document.getElementById('storeName').innerText = storeInfo.storeName;
                 
-                // แสดงชื่อแพ็กเกจที่โต๊ะกำลังใช้งานอยู่
+                // 4. แสดงชื่อแพ็กเกจที่โต๊ะกำลังใช้งานอยู่
                 if (tableSession && tableSession.mode === 'buffet') {
                     let pkg = buffetPackages.find(p => String(p.id) === String(tableSession.packageId));
                     if (pkg) {
@@ -254,6 +262,11 @@ function submitCustomerOrder() {
     }).then(res => res.json())
       .then(res => {
           console.log("ส่งออเดอร์เข้าหลังบ้านสำเร็จ", res);
+          
+          // 🛑 4. ถ้าลูกค้ามือไว! มากดส่งออเดอร์ในจังหวะเดียวกับที่เรากดเช็คบิล ให้บล็อกหน้าจอทันที
+          if (res.status === "Error" && (res.message.includes("ไม่พบข้อมูลโต๊ะ") || res.message.includes("ไม่ได้เปิดใช้งาน"))) {
+              if (typeof lockScreenAfterCheckout === 'function') lockScreenAfterCheckout();
+          }
       })
       .catch(err => console.error("Error ส่งออเดอร์เบื้องหลัง:", err));
 }
@@ -314,4 +327,45 @@ function openOrderHistoryModal() {
         confirmButtonColor: '#ea580c',
         width: '400px'
     });
+}
+// ==========================================
+// 🔒 ระบบตรวจสอบสถานะโต๊ะ (ป้องกันกดสั่งหลังเช็คบิล)
+// ==========================================
+let tableCheckInterval = null;
+
+function startTableWatcher() {
+    if (tableCheckInterval) clearInterval(tableCheckInterval);
+    
+    // แอบเช็คสถานะโต๊ะทุกๆ 10 วินาที
+    tableCheckInterval = setInterval(() => {
+        let targetUrl = `${GAS_API_URL}?action=getCustomerMenu&storeId=${storeId}&table=${table}`;
+        fetch(targetUrl)
+            .then(res => res.json())
+            .then(res => {
+                if (res.status === "Success") {
+                    let currentSession = res.data.tableSession;
+                    
+                    // 🛑 ถ้าโต๊ะถูกเคลียร์แล้ว (ไม่มี session) หรือ โทเค็นเปลี่ยน (ลูกค้าใหม่มานั่ง)
+                    if (!currentSession || currentSession.token !== token) {
+                        lockScreenAfterCheckout();
+                    }
+                }
+            })
+            .catch(err => console.log("Watcher Error:", err));
+    }, 10000);
+}
+
+function lockScreenAfterCheckout() {
+    if (tableCheckInterval) clearInterval(tableCheckInterval);
+    
+    // เคลียร์หน้าจอเมนูทิ้งทั้งหมด แล้วขึ้นป้ายขอบคุณ
+    document.body.innerHTML = `
+        <div class="flex flex-col h-screen items-center justify-center bg-slate-50 p-6 text-center animate-fade-in">
+            <div class="w-24 h-24 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center text-5xl mb-4 shadow-inner">
+                👋
+            </div>
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">ขอบคุณที่ใช้บริการ!</h2>
+            <p class="text-slate-500">โต๊ะนี้ทำการเช็คบิลและเคลียร์โต๊ะเรียบร้อยแล้ว<br>ไม่สามารถสั่งอาหารเพิ่มได้ครับ</p>
+        </div>
+    `;
 }
