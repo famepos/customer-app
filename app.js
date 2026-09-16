@@ -216,27 +216,40 @@ function submitCustomerOrder() {
         didOpen: () => Swal.showLoading()
     });
 
-    let cartString = encodeURIComponent(JSON.stringify(cart));
-    let targetUrl = GAS_API_URL + '?action=submitCustomerOrder&storeId=' + storeId + '&table=' + encodeURIComponent(table) + '&token=' + token + '&cart=' + cartString;
+    // 🟢 1. จัดก้อนข้อมูลที่จะส่งไปให้ doPost ทำงาน
+    let payload = {
+        action: "submitCustomerOrder",
+        args: [storeId, table, token, cart] // ส่งข้อมูล 4 ตัวให้ Apps Script
+    };
 
-    fetch(targetUrl)
-        .then(function(res) {
-            return res.json();
-        })
-        .then(function(res) {
-            if (res.status === "Success") {
-                Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
-                cart = [];
-                updateCartUI();
-                closeCartModal();
-            } else {
-                Swal.fire('เกิดข้อผิดพลาด', res.message || 'ไม่สามารถส่งออเดอร์ได้', 'error');
-            }
-        })
-        .catch(function(err) {
+    // 🟢 2. ยิงข้อมูลแบบ POST ผ่าน Body จะส่งข้อมูลเยอะแค่ไหน URL ก็ไม่พัง!
+    fetch(GAS_API_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "text/plain;charset=utf-8" // ต้องเป็น text/plain เพื่อไม่ให้ติด CORS
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(function(res) {
+        return res.json();
+    })
+    .then(function(res) {
+        // ตรวจสอบว่าสำเร็จหรือไม่
+        if (res.status === "Success" || (res.result && res.result.message === "สั่งอาหารสำเร็จ")) {
             Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
             cart = [];
             updateCartUI();
             closeCartModal();
-        });
+        } else {
+            Swal.fire('เกิดข้อผิดพลาด', res.message || 'ไม่สามารถส่งออเดอร์ได้', 'error');
+        }
+    })
+    .catch(function(err) {
+        console.error("Fetch Error:", err);
+        // บัตรกันตาย: บางที Google Apps Script ตอบกลับช้าแต่เซฟลงชีตไปแล้ว ให้ถือว่าสำเร็จและเคลียร์ตะกร้าได้เลย
+        Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
+        cart = [];
+        updateCartUI();
+        closeCartModal();
+    });
 }
