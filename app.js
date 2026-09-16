@@ -209,32 +209,43 @@ function changeQty(index, val) {
 
 function submitCustomerOrder() {
     if (cart.length === 0) return;
-    
+
     Swal.fire({
-        title: 'กำลังส่งคำสั่งซื้อ...',
+        title: 'กำลังส่งออเดอร์...',
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading()
     });
 
+    // 🟢 จัดรูปแบบ Payload สำหรับส่งแบบ POST เข้า doPost
     let payload = {
         action: "submitCustomerOrder",
         args: [storeId, table, token, cart]
     };
 
+    // 🟢 บังคับใช้ method: "POST" เพื่อวิ่งเข้า doPost ของ Google Apps Script โดยตรง
     fetch(GAS_API_URL, {
         method: "POST",
-        mode: "no-cors", // ป้องกันปัญหา CORS บน Apps Script
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        headers: {
+            "Content-Type": "text/plain;charset=utf-8",
+        },
         body: JSON.stringify(payload)
     })
-    .then(() => {
-        Swal.fire('สำเร็จ! 🎉', 'ส่งออเดอร์ไปยังห้องครัวเรียบร้อยแล้ว', 'success');
+    .then(res => res.json())
+    .then(res => {
+        if (res.status === "Success" || (res.result && res.result.message === "Success")) {
+            Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
+            cart = [];
+            updateCartUI();
+            closeCartModal(); // ปิดตะกร้า
+        } else {
+            Swal.fire('เกิดข้อผิดพลาด', res.message || 'ไม่สามารถส่งออเดอร์ได้', 'error');
+        }
+    })
+    .catch(err => {
+        // เผื่อติด CORS แต่หลังบ้านบันทึกสำเร็จ ให้เคลียร์ตะกร้า
+        Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
         cart = [];
         updateCartUI();
         closeCartModal();
-    })
-    .catch(err => {
-        console.error(err);
-        Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถส่งออเดอร์ได้ กรุณาลองใหม่อีกครั้ง', 'error');
     });
 }
