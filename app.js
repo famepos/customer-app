@@ -22,9 +22,9 @@ window.onload = function() {
     loadCustomerMenu();
 };
 
-// ดึงข้อมูลเมนูอาหารผ่าน API ที่เราเขียนไว้ (getCustomerMenu)
+// ตอนโหลดเมนู ให้เก็บข้อมูล tableSession และ buffetPackages ไว้ใช้
 function loadCustomerMenu() {
-    let targetUrl = `${GAS_API_URL}?action=getCustomerMenu&storeId=${storeId}`;
+    let targetUrl = `${GAS_API_URL}?action=getCustomerMenu&storeId=${storeId}&table=${table}`;
     
     fetch(targetUrl)
         .then(res => res.json())
@@ -32,20 +32,41 @@ function loadCustomerMenu() {
             if (res.status === "Success") {
                 storeInfo = res.data.storeInfo || {};
                 allProducts = res.data.products || [];
+                buffetPackages = res.data.buffetPackages || [];
+                tableSession = res.data.tableSession || null;
 
                 if (storeInfo.storeName) document.getElementById('storeName').innerText = storeInfo.storeName;
-                if (storeInfo.logoUrl) document.getElementById('storeLogo').src = storeInfo.logoUrl;
+                
+                // แสดงป้ายบอกแพ็กเกจที่โต๊ะกำลังกินอยู่ (ถ้ามี)
+                if (tableSession && tableSession.mode === 'buffet') {
+                    let pkg = buffetPackages.find(p => String(p.id) === String(tableSession.packageId));
+                    if (pkg) {
+                        document.getElementById('tableInfo').innerText = `โต๊ะ: ${table} (${pkg.name})`;
+                    }
+                }
 
                 renderCategoryFilters(allProducts);
                 renderProductGrid(allProducts);
-            } else {
-                Swal.fire('ข้อผิดพลาด', 'ไม่สามารถโหลดเมนูอาหารได้', 'error');
             }
-        })
-        .catch(err => {
-            console.error(err);
-            Swal.fire('การเชื่อมต่อล้มเหลว', 'กรุณารีเฟรชหน้าจอใหม่อีกครั้ง', 'error');
         });
+}
+// 🧠 ฟังก์ชันเช็คสิทธิ์บุฟเฟต์ฝั่งลูกค้า (จำลองจากโค้ดที่คุณมี)
+function checkClientBuffetPrivilege(productCategory) {
+    if (!tableSession || tableSession.mode !== 'buffet') return { isFree: false };
+
+    let pkg = buffetPackages.find(p => String(p.id) === String(tableSession.packageId));
+    if (!pkg || !pkg.allowedCategories) return { isFree: false };
+
+    let allowedStr = pkg.allowedCategories.trim();
+    if (allowedStr === "") return { isFree: true }; // เว้นว่าง = ฟรีทุกหมวด
+
+    let allowedArr = allowedStr.split(',').map(s => s.trim().toLowerCase());
+    let pCat = (productCategory || "ทั่วไป").trim().toLowerCase();
+
+    if (allowedArr.includes(pCat) || allowedArr.includes('ทั้งหมด')) {
+        return { isFree: true };
+    }
+    return { isFree: false };
 }
 
 function renderCategoryFilters(products) {
@@ -81,41 +102,55 @@ function filterCustomerMenu() {
     renderProductGrid(filtered);
 }
 
+// ตอนเรนเดอร์สินค้า ให้เช็คว่าอันไหนฟรี/อันไหนเสียเงิน
 function renderProductGrid(products) {
     let grid = document.getElementById('customerProductGrid');
-    if (products.length === 0) {
-        grid.innerHTML = '<div class="col-span-2 text-center text-slate-400 py-12 font-medium">ไม่พบเมนูอาหาร</div>';
-        return;
-    }
+    
+    grid.innerHTML = products.map(p => {
+        let privilege = checkClientBuffetPrivilege(p.category);
+        let displayPrice = privilege.isFree ? 0 : p.price;
+        
+        let priceTag = privilege.isFree 
+            ? `<span class="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-md font-bold">ฟรี (ในบุฟเฟต์)</span>`
+            : `<span class="font-black text-orange-600 text-base">฿${p.price.toFixed(2)}</span>`;
 
-    grid.innerHTML = products.map(p => `
-        <div onclick="addToCart('${p.id}')" class="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between cursor-pointer active:scale-95 transition">
-            <div>
-                <img src="${p.image || 'https://placehold.co/150'}" class="w-full h-32 object-cover rounded-xl mb-2 bg-slate-50 border border-slate-100">
-                <h4 class="font-bold text-slate-800 text-sm line-clamp-2">${p.name}</h4>
+        return `
+            <div onclick="addToCart('${p.id}', ${privilege.isFree})" class="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between cursor-pointer active:scale-95 transition">
+                <div>
+                    <img src="${p.image || 'https://placehold.co/150'}" class="w-full h-32 object-cover rounded-xl mb-2 bg-slate-50 border border-slate-100">
+                    <h4 class="font-bold text-slate-800 text-sm line-clamp-2">${p.name}</h4>
+                </div>
+                <div class="mt-3 flex justify-between items-end">
+                    ${priceTag}
+                    <span class="text-xs bg-orange-50 text-orange-600 px-2 py-1 rounded-lg font-bold">+ สั่ง</span>
+                </div>
             </div>
-            <div class="mt-3 flex justify-between items-end">
-                <span class="font-black text-orange-600 text-base">฿${p.price.toFixed(2)}</span>
-                <span class="text-xs bg-orange-50 text-orange-600 px-2 py-1 rounded-lg font-bold">+ สั่ง</span>
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
-function addToCart(productId) {
+function addToCart(productId, isFree) {
     let p = allProducts.find(item => item.id === productId);
     if (!p) return;
 
-    let existing = cart.find(i => i.id === p.id);
+    let finalPrice = isFree ? 0 : p.price;
+
+    let existing = cart.find(i => i.id === p.id && i.price === finalPrice);
     if (existing) {
         existing.qty += 1;
     } else {
-        cart.push({ id: p.id, name: p.name, price: p.price, qty: 1, unit: 'ชิ้น' });
+        cart.push({ 
+            id: p.id, 
+            name: p.name, 
+            price: finalPrice, 
+            basePrice: p.price,
+            qty: 1, 
+            isBuffetFree: isFree 
+        });
     }
     updateCartUI();
     Swal.fire({ toast: true, position: 'top', icon: 'success', title: `เพิ่ม ${p.name} แล้ว`, showConfirmButton: false, timer: 1200 });
 }
-
 function updateCartUI() {
     let totalQty = cart.reduce((sum, i) => sum + i.qty, 0);
     let totalPrice = cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
