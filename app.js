@@ -27,8 +27,9 @@ let tableSession = null;
 let buffetPackages = [];
 
 function loadCustomerMenu() {
-    // แนบค่า table ไปกับ URL เพื่อให้หลังบ้านเช็คแพ็กเกจของโต๊ะถูกตัว
-    let targetUrl = `${GAS_API_URL}?action=getCustomerMenu&storeId=${storeId}&table=${table}`;
+    // 🟢 1. ใช้ encodeURIComponent ห่อตัวแปร table
+    let safeTable = encodeURIComponent(table);
+    let targetUrl = `${GAS_API_URL}?action=getCustomerMenu&storeId=${storeId}&table=${safeTable}`;
     
     fetch(targetUrl)
         .then(res => res.json())
@@ -336,23 +337,23 @@ let tableCheckInterval = null;
 function startTableWatcher() {
     if (tableCheckInterval) clearInterval(tableCheckInterval);
     
-    // แอบเช็คสถานะโต๊ะทุกๆ 10 วินาที
     tableCheckInterval = setInterval(() => {
-        let targetUrl = `${GAS_API_URL}?action=getCustomerMenu&storeId=${storeId}&table=${table}`;
+        // 🟢 2. ใช้ encodeURIComponent ห่อตัวแปร table ตรงนี้ด้วย!
+        let safeTable = encodeURIComponent(table);
+        let targetUrl = `${GAS_API_URL}?action=getCustomerMenu&storeId=${storeId}&table=${safeTable}`;
+        
         fetch(targetUrl)
             .then(res => res.json())
             .then(res => {
                 if (res.status === "Success") {
                     let currentSession = res.data.tableSession;
-                    
-                    // 🛑 ถ้าโต๊ะถูกเคลียร์แล้ว (ไม่มี session) หรือ โทเค็นเปลี่ยน (ลูกค้าใหม่มานั่ง)
                     if (!currentSession || currentSession.token !== token) {
                         lockScreenAfterCheckout();
                     }
                 }
             })
             .catch(err => console.log("Watcher Error:", err));
-    }, 10000);
+    }, 2000);
 }
 
 function lockScreenAfterCheckout() {
