@@ -22,8 +22,11 @@ window.onload = function() {
     loadCustomerMenu();
 };
 
-// ตอนโหลดเมนู ให้เก็บข้อมูล tableSession และ buffetPackages ไว้ใช้
+let tableSession = null;
+let buffetPackages = [];
+
 function loadCustomerMenu() {
+    // แนบค่า table ไปกับ URL เพื่อให้หลังบ้านเช็คแพ็กเกจของโต๊ะถูกตัว
     let targetUrl = `${GAS_API_URL}?action=getCustomerMenu&storeId=${storeId}&table=${table}`;
     
     fetch(targetUrl)
@@ -37,7 +40,7 @@ function loadCustomerMenu() {
 
                 if (storeInfo.storeName) document.getElementById('storeName').innerText = storeInfo.storeName;
                 
-                // แสดงป้ายบอกแพ็กเกจที่โต๊ะกำลังกินอยู่ (ถ้ามี)
+                // แสดงชื่อแพ็กเกจที่โต๊ะกำลังใช้งานอยู่
                 if (tableSession && tableSession.mode === 'buffet') {
                     let pkg = buffetPackages.find(p => String(p.id) === String(tableSession.packageId));
                     if (pkg) {
@@ -50,7 +53,8 @@ function loadCustomerMenu() {
             }
         });
 }
-// 🧠 ฟังก์ชันเช็คสิทธิ์บุฟเฟต์ฝั่งลูกค้า (จำลองจากโค้ดที่คุณมี)
+
+// 🧠 ฟังก์ชันเช็คสิทธิ์บุฟเฟต์ฝั่งลูกค้า
 function checkClientBuffetPrivilege(productCategory) {
     if (!tableSession || tableSession.mode !== 'buffet') return { isFree: false };
 
@@ -58,7 +62,7 @@ function checkClientBuffetPrivilege(productCategory) {
     if (!pkg || !pkg.allowedCategories) return { isFree: false };
 
     let allowedStr = pkg.allowedCategories.trim();
-    if (allowedStr === "") return { isFree: true }; // เว้นว่าง = ฟรีทุกหมวด
+    if (allowedStr === "") return { isFree: true }; // ถ้าเว้นว่างไว้ = ฟรีทุกหมวด
 
     let allowedArr = allowedStr.split(',').map(s => s.trim().toLowerCase());
     let pCat = (productCategory || "ทั่วไป").trim().toLowerCase();
@@ -67,19 +71,6 @@ function checkClientBuffetPrivilege(productCategory) {
         return { isFree: true };
     }
     return { isFree: false };
-}
-
-function renderCategoryFilters(products) {
-    let categories = ['ทั้งหมด', ...new Set(products.map(p => p.category).filter(c => c))];
-    let container = document.getElementById('customerCategoryContainer');
-    
-    container.innerHTML = categories.map(cat => `
-        <button onclick="filterCategory('${cat}', this)" class="cat-btn px-4 py-2 bg-white text-slate-600 border border-slate-200 rounded-xl text-xs font-bold whitespace-nowrap shadow-xs transition">${cat}</button>
-    `).join('');
-    
-    if(container.children.length > 0) {
-        container.children[0].className = "cat-btn px-4 py-2 bg-orange-600 text-white rounded-xl text-xs font-bold whitespace-nowrap shadow-xs transition";
-    }
 }
 
 function filterCategory(cat, btn) {
@@ -102,10 +93,14 @@ function filterCustomerMenu() {
     renderProductGrid(filtered);
 }
 
-// ตอนเรนเดอร์สินค้า ให้เช็คว่าอันไหนฟรี/อันไหนเสียเงิน
+// เรนเดอร์สินค้าพร้อมเช็คราคาฟรี/เสียเงิน
 function renderProductGrid(products) {
     let grid = document.getElementById('customerProductGrid');
-    
+    if (products.length === 0) {
+        grid.innerHTML = '<div class="col-span-2 text-center text-slate-400 py-12 font-medium">ไม่พบเมนูอาหาร</div>';
+        return;
+    }
+
     grid.innerHTML = products.map(p => {
         let privilege = checkClientBuffetPrivilege(p.category);
         let displayPrice = privilege.isFree ? 0 : p.price;
@@ -115,7 +110,7 @@ function renderProductGrid(products) {
             : `<span class="font-black text-orange-600 text-base">฿${p.price.toFixed(2)}</span>`;
 
         return `
-            <div onclick="addToCart('${p.id}', ${privilege.isFree})" class="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between cursor-pointer active:scale-95 transition">
+            <div onclick="addToCart('${p.id}', ${privilege.isFree})" class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between cursor-pointer active:scale-95 transition">
                 <div>
                     <img src="${p.image || 'https://placehold.co/150'}" class="w-full h-32 object-cover rounded-xl mb-2 bg-slate-50 border border-slate-100">
                     <h4 class="font-bold text-slate-800 text-sm line-clamp-2">${p.name}</h4>
@@ -145,12 +140,14 @@ function addToCart(productId, isFree) {
             price: finalPrice, 
             basePrice: p.price,
             qty: 1, 
+            unit: 'ชิ้น',
             isBuffetFree: isFree 
         });
     }
     updateCartUI();
     Swal.fire({ toast: true, position: 'top', icon: 'success', title: `เพิ่ม ${p.name} แล้ว`, showConfirmButton: false, timer: 1200 });
 }
+
 function updateCartUI() {
     let totalQty = cart.reduce((sum, i) => sum + i.qty, 0);
     let totalPrice = cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
