@@ -208,35 +208,3 @@ function changeQty(index, val) {
 }
 
 function submitCustomerOrder() {
-    if (cart.length === 0) return;
-
-    Swal.fire({
-        title: 'กำลังส่งออเดอร์...',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-    });
-
-    let cartString = encodeURIComponent(JSON.stringify(cart));
-    let targetUrl = GAS_API_URL + '?action=submitCustomerOrder&storeId=' + storeId + '&table=' + encodeURIComponent(table) + '&token=' + token + '&cart=' + cartString;
-
-    fetch(targetUrl)
-        .then(function(res) {
-            return res.json();
-        })
-        .then(function(res) {
-            if (res.status === "Success") {
-                Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
-                cart = [];
-                updateCartUI();
-                closeCartModal();
-            } else {
-                Swal.fire('เกิดข้อผิดพลาด', res.message || 'ไม่สามารถส่งออเดอร์ได้', 'error');
-            }
-        })
-        .catch(function(err) {
-            Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
-            cart = [];
-            updateCartUI();
-            closeCartModal();
-        });
-}
