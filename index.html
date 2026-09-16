@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สั่งอาหารออนไลน์</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { font-family: 'Kanit', sans-serif; background-color: #f8fafc; color: #1e293b; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-slate-50 h-screen flex flex-col justify-between overflow-hidden">
+
+    <!-- Header ร้านค้า & โต๊ะ -->
+    <header class="bg-white border-b border-slate-200 p-4 shadow-sm shrink-0 flex justify-between items-center z-10">
+        <div class="flex items-center gap-3">
+            <img id="storeLogo" src="https://i.postimg.cc/X74hPJ2P/d6049aa4-2f56-4eea-950b-d57943e64079.png" class="w-10 h-10 object-contain rounded-xl border bg-slate-50">
+            <div>
+                <h1 id="storeName" class="font-bold text-slate-800 text-base">กำลังโหลดร้าน...</h1>
+                <p id="tableInfo" class="text-xs text-orange-600 font-bold">โต๊ะ: -</p>
+            </div>
+        </div>
+        <div class="text-[10px] bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-full font-bold border border-emerald-100">● พร้อมสั่งอาหาร</div>
+    </header>
+
+    <!-- พื้นที่แสดงเมนูอาหาร -->
+    <div class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar pb-24">
+        <!-- ช่องค้นหาเมนู -->
+        <input type="text" id="searchMenuInput" oninput="filterCustomerMenu()" placeholder="🔍 ค้นหาเมนูอาหาร..." class="w-full p-3 rounded-2xl border border-slate-200 outline-none focus:border-orange-500 font-medium bg-white shadow-xs text-sm">
+
+        <!-- แถบหมวดหมู่สินค้า -->
+        <div id="customerCategoryContainer" class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            <button onclick="filterCategory('ทั้งหมด', this)" class="cat-btn px-4 py-2 bg-orange-600 text-white rounded-xl text-xs font-bold whitespace-nowrap shadow-xs transition">ทั้งหมด</button>
+        </div>
+
+        <!-- รายการเมนูอาหาร -->
+        <div id="customerProductGrid" class="grid grid-cols-2 gap-3 content-start">
+            <div class="col-span-2 text-center text-slate-400 py-12 font-medium">⏳ กำลังโหลดเมนูอาหาร...</div>
+        </div>
+    </div>
+
+    <!-- แถบตะกร้าสินค้าด้านล่าง (Floating Cart Bar) -->
+    <div id="floatingCartBar" class="hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-2xl rounded-t-3xl flex justify-between items-center z-30">
+        <div>
+            <div class="text-xs text-slate-400 font-medium">ตะกร้าของคุณ (<span id="cartItemCount" class="font-bold text-orange-600">0</span> รายการ)</div>
+            <div id="cartTotalPrice" class="text-lg font-black text-orange-600">฿0.00</div>
+        </div>
+        <button onclick="openCartModal()" class="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-2xl font-bold shadow-md transition flex items-center gap-2 text-sm">
+            <span>🛒</span> ดูตะกร้า & สั่งอาหาร
+        </button>
+    </div>
+
+    <!-- Modal: ตะกร้าสินค้า -->
+    <div id="cartModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center sm:p-4">
+        <div class="bg-white rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg p-6 shadow-2xl relative flex flex-col max-h-[85vh]">
+            <button onclick="closeCartModal()" class="absolute top-4 right-5 text-slate-400 hover:text-red-500 text-2xl font-bold">&times;</button>
+            <h3 class="text-xl font-bold text-slate-800 mb-4 border-b pb-3 flex items-center gap-2"><span>🛒</span> ตะกร้าอาหารของคุณ</h3>
+            
+            <div id="cartModalItemsList" class="flex-1 overflow-y-auto space-y-3 pr-1 divide-y divide-slate-100 no-scrollbar"></div>
+
+            <div class="pt-4 border-t border-slate-200 mt-4 space-y-3 shrink-0">
+                <div class="flex justify-between text-lg font-black text-slate-800">
+                    <span>ยอดรวมทั้งสิ้น</span>
+                    <span id="cartModalTotal" class="text-orange-600">฿0.00</span>
+                </div>
+                <button onclick="submitCustomerOrder()" class="w-full bg-orange-600 hover:bg-orange-700 text-white p-4 rounded-2xl font-bold text-base shadow-lg transition flex items-center justify-center gap-2">
+                    <span>🚀</span> ยืนยันการสั่งอาหาร (ส่งเข้าครัว)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
