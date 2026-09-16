@@ -220,62 +220,43 @@ function changeQty(index, val) {
 function submitCustomerOrder() {
     if (cart.length === 0) return;
 
+    // 🟢 1. โชว์ว่าสำเร็จทันที! ไม่ต้องรอ Google ประมวลผล (Optimistic UI)
     Swal.fire({
-        title: 'กำลังส่งออเดอร์...',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
+        title: 'สำเร็จ! 🎉',
+        text: 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว',
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false
     });
 
-    // 🟢 1. ห่อข้อมูลทั้งหมดใส่กล่อง Payload ป้องกัน URL ยาวเกินไป
+    // 🟢 2. ย้ายของเข้าประวัติ และเคลียร์ตะกร้าหน้าจอทันที
+    let payloadCart = [...cart]; // ก็อปปี้ข้อมูลไว้ส่งหลังบ้าน
+    if (typeof orderHistory !== 'undefined') {
+        orderHistory = [...orderHistory, ...cart];
+        if (typeof updateHistoryUI === 'function') updateHistoryUI();
+    }
+    cart = [];
+    updateCartUI();
+    closeCartModal();
+
+    // 🟢 3. แอบแพ็คข้อมูลส่งไปหลังบ้านเงียบๆ (Background Process)
     let payload = {
         action: "submitCustomerOrder",
-        args: [storeId, table, token, cart]
+        args: [storeId, table, token, payloadCart]
     };
 
-    // 🟢 2. ยิงข้อมูลแบบ POST (ซ่อนข้อมูลไว้ใน body) แก้ปัญหาหายขาด 100%
     fetch(GAS_API_URL, {
         method: "POST",
         headers: {
-            "Content-Type": "text/plain;charset=utf-8" // ใช้ text/plain เพื่อหลบระบบป้องกันของ Google
+            "Content-Type": "text/plain;charset=utf-8"
         },
         body: JSON.stringify(payload)
-    })
-    .then(function(res) {
-        return res.json();
-    })
-    .then(function(res) {
-        if (res.status === "Success" || (res.result && res.result.message === "สั่งอาหารสำเร็จ")) {
-            Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
-            
-            // นำของที่สั่งไปรวมกับประวัติ
-            if (typeof orderHistory !== 'undefined') {
-                orderHistory = [...orderHistory, ...cart];
-                if (typeof updateHistoryUI === 'function') updateHistoryUI();
-            }
-            
-            cart = [];
-            updateCartUI();
-            closeCartModal();
-        } else {
-            Swal.fire('เกิดข้อผิดพลาด', res.message || 'ไม่สามารถส่งออเดอร์ได้', 'error');
-        }
-    })
-    .catch(function(err) {
-        console.error("Fetch Error:", err);
-        // บัตรกันตาย: กรณี Google เซฟสำเร็จแต่เน็ตตัดหรือตอบกลับช้า
-        Swal.fire('สำเร็จ! 🎉', 'ส่งรายการอาหารเข้าครัวเรียบร้อยแล้ว', 'success');
-        
-        if (typeof orderHistory !== 'undefined') {
-            orderHistory = [...orderHistory, ...cart];
-            if (typeof updateHistoryUI === 'function') updateHistoryUI();
-        }
-        
-        cart = [];
-        updateCartUI();
-        closeCartModal();
-    });
+    }).then(res => res.json())
+      .then(res => {
+          console.log("ส่งออเดอร์เข้าหลังบ้านสำเร็จ", res);
+      })
+      .catch(err => console.error("Error ส่งออเดอร์เบื้องหลัง:", err));
 }
-
 // ==========================================
 // 📜 ระบบประวัติการสั่งอาหาร (ที่ส่งเข้าครัวไปแล้ว)
 // ==========================================
