@@ -353,7 +353,7 @@ function startTableWatcher() {
                 }
             })
             .catch(err => console.log("Watcher Error:", err));
-    }, 2000);
+    }, 10000);
 }
 
 function lockScreenAfterCheckout() {
