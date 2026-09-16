@@ -73,6 +73,23 @@ function checkClientBuffetPrivilege(productCategory) {
     return { isFree: false };
 }
 
+// 🏷️ ฟังก์ชันสร้างปุ่มกรองหมวดหมู่สินค้าด้านบนเมนู
+function renderCategoryFilters(products) {
+    let categories = ['ทั้งหมด', ...new Set(products.map(p => p.category).filter(c => c))];
+    let container = document.getElementById('customerCategoryContainer');
+    
+    if (!container) return;
+
+    container.innerHTML = categories.map(cat => `
+        <button onclick="filterCategory('${cat}', this)" class="cat-btn px-4 py-2 bg-white text-slate-600 border border-slate-200 rounded-xl text-xs font-bold whitespace-nowrap shadow-xs transition">${cat}</button>
+    `).join('');
+    
+    if(container.children.length > 0) {
+        container.children[0].className = "cat-btn px-4 py-2 bg-orange-600 text-white rounded-xl text-xs font-bold whitespace-nowrap shadow-xs transition";
+    }
+}
+
+// 🔍 ฟังก์ชันกรองหมวดหมู่เมื่อกดปุ่ม
 function filterCategory(cat, btn) {
     currentCategory = cat;
     document.querySelectorAll('.cat-btn').forEach(b => {
