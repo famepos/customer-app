@@ -385,10 +385,18 @@ function openCustomerPaymentModal() {
         return;
     }
 
-    // 🟢 เก็บยอดเงินตั้งต้นก่อนเปิด QR เพื่อเอาไว้เทียบว่าจ่ายจริงหรือยัง
     let expectedAmount = totalPrice;
 
-    let promptpayNo = (storeInfo && storeInfo.promptpayNo) ? storeInfo.promptpayNo : "0123456789"; 
+    // 🟢 แก้ไขตรงนี้: ดึงเบอร์พร้อมเพย์จากข้อมูลร้าน (storeInfo) ที่โหลดมาจริงๆ 
+    // (ลองเช็กชื่อฟิลด์หลังร้านของคุณดูครับ ว่าเก็บไว้ที่ promptpay, promptpayNo หรือ promptPay)
+    let promptpayNo = (storeInfo && (storeInfo.promptpayNo || storeInfo.promptpay || storeInfo.promptPay)) ? 
+                      (storeInfo.promptpayNo || storeInfo.promptpay || storeInfo.promptPay) : "";
+
+    if (!promptpayNo) {
+        Swal.fire('แจ้งเตือน', 'ร้านยังไม่ได้ตั้งค่าเบอร์พร้อมเพย์ กรุณาติดต่อพนักงาน', 'warning');
+        return;
+    }
+
     let qrUrl = `https://promptpay.io/${promptpayNo}/${expectedAmount.toFixed(2)}`;
 
     let paymentHtml = `
@@ -420,7 +428,6 @@ function openCustomerPaymentModal() {
         cancelButtonText: 'ยกเลิก',
         cancelButtonColor: '#64748b',
         didOpen: () => {
-            // ส่งยอดตั้งต้นเข้าไปเช็กด้วย เพื่อป้องกันการเข้าใจผิด
             startPaymentStatusWatcher(expectedAmount);
         },
         willClose: () => {
