@@ -370,3 +370,94 @@ function lockScreenAfterCheckout() {
         </div>
     `;
 }
+
+// ==========================================
+// 💳 ระบบชำระเงินด้วย Dynamic QR Code (ลูกค้าสแกนจ่ายทันที)
+// ==========================================
+let paymentCheckInterval = null;
+
+function openCustomerPaymentModal() {
+    closeCartModal();
+    let totalPrice = cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
+    
+    if (totalPrice <= 0) {
+        Swal.fire('ตะกร้าว่างเปล่า', 'กรุณาเลือกรายการอาหารก่อนชำระเงิน', 'warning');
+        return;
+    }
+
+    // สร้างลิงก์ Dynamic QR พร้อมยอดเงินจริงผ่าน PromptPay (ใช้เบอร์ร้านหรือ PromptPay ID)
+    // หมายเหตุ: ตรงนี้สามารถดึงค่า PromptPay ID จาก storeInfo ได้ ถ้าหลังบ้านส่งมา
+    let promptpayNo = (storeInfo && storeInfo.promptpayNo) ? storeInfo.promptpayNo : "0123456789"; 
+    let qrUrl = `https://promptpay.io/${promptpayNo}/${totalPrice.toFixed(2)}`;
+
+    let paymentHtml = `
+        <div class="text-center space-y-4">
+            <div class="bg-orange-50 p-3 rounded-2xl border border-orange-100">
+                <div class="text-xs text-slate-500">ยอดชำระสุทธิของโต๊ะ ${table}</div>
+                <div class="text-2xl font-black text-orange-600">฿${totalPrice.toFixed(2)}</div>
+            </div>
+            
+            <div class="flex justify-center">
+                <div class="p-3 bg-white border-2 border-dashed border-slate-200 rounded-2xl shadow-sm inline-block">
+                    <img id="customerDynamicQrImg" src="${qrUrl}" class="w-48 h-48 object-contain">
+                </div>
+            </div>
+
+            <p class="text-xs text-slate-500">สแกนจ่ายผ่านแอปพลิเคชันธนาคารใดก็ได้<br>ระบบจะตรวจสอบยอดเงินและส่งออเดอร์เข้าครัวอัตโนมัติ</p>
+
+            <div class="animate-pulse text-xs font-bold text-orange-500 bg-orange-50 py-2 rounded-xl">
+                ⏳ กำลังรอการชำระเงิน...
+            </div>
+        </div>
+    `;
+
+    Swal.fire({
+        title: '📱 สแกนจ่ายทันที',
+        html: paymentHtml,
+        showConfirmButton: false,
+        showCancelButton: true,
+        cancelButtonText: 'ยกเลิก',
+        cancelButtonColor: '#64748b',
+        didOpen: () => {
+            // 🕵️‍♂️ เริ่มรันระบบเช็กสถานะการจ่ายเงินจากหลังบ้านทุกๆ 3 วินาที
+            startPaymentStatusWatcher(totalPrice);
+        },
+        willClose: () => {
+            if (paymentCheckInterval) clearInterval(paymentCheckInterval);
+        }
+    });
+}
+
+// ฟังก์ชันคอยเช็กว่าแคชเชียร์หรือระบบ API กดรับเงิน/ยืนยันบิลของโต๊ะนี้หรือยัง
+function startPaymentStatusWatcher(expectedAmount) {
+    if (paymentCheckInterval) clearInterval(paymentCheckInterval);
+
+    paymentCheckInterval = setInterval(() => {
+        let safeTable = encodeURIComponent(table);
+        let targetUrl = `${GAS_API_URL}?action=getCustomerMenu&storeId=${storeId}&table=${safeTable}`;
+        
+        fetch(targetUrl)
+            .then(res => res.json())
+            .then(res => {
+                if (res.status === "Success") {
+                    let session = res.data.tableSession;
+                    // ถ้าในระบบหลังบ้านเคลียร์ cart หรือเปลี่ยนสถานะเป็นชำระเงินแล้ว (เช่น ยอดใน session เป็น 0 หรือถูกรีเซ็ต)
+                    if (!session || !session.cart || session.cart.length === 0) {
+                        clearInterval(paymentCheckInterval);
+                        Swal.fire({
+                            title: 'ชำระเงินสำเร็จ! 🎉',
+                            text: 'ออเดอร์ของคุณถูกส่งเข้าครัวเรียบร้อยแล้วครับ',
+                            icon: 'success',
+                            confirmButtonColor: '#ea580c',
+                            confirmButtonText: 'ตกลง'
+                        }).then(() => {
+                            cart = [];
+                            updateCartUI();
+                            location.reload(); // รีโหลดหน้าจอเพื่ออัปเดตสถานะล่าสุด
+                        });
+                    }
+                }
+            })
+            .catch(err => console.log("Payment Watcher Error:", err));
+    }, 3000);
+}
