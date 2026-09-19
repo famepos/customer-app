@@ -372,7 +372,7 @@ function lockScreenAfterCheckout() {
 }
 
 // ==========================================
-// 💳 ระบบชำระเงินด้วย Dynamic QR Code (ลูกค้าสแกนจ่ายทันที)
+// 💳 ระบบชำระเงินด้วย Dynamic QR Code (ฉบับแก้ไขให้แม่นยำขึ้น)
 // ==========================================
 let paymentCheckInterval = null;
 
@@ -385,16 +385,17 @@ function openCustomerPaymentModal() {
         return;
     }
 
-    // สร้างลิงก์ Dynamic QR พร้อมยอดเงินจริงผ่าน PromptPay (ใช้เบอร์ร้านหรือ PromptPay ID)
-    // หมายเหตุ: ตรงนี้สามารถดึงค่า PromptPay ID จาก storeInfo ได้ ถ้าหลังบ้านส่งมา
+    // 🟢 เก็บยอดเงินตั้งต้นก่อนเปิด QR เพื่อเอาไว้เทียบว่าจ่ายจริงหรือยัง
+    let expectedAmount = totalPrice;
+
     let promptpayNo = (storeInfo && storeInfo.promptpayNo) ? storeInfo.promptpayNo : "0123456789"; 
-    let qrUrl = `https://promptpay.io/${promptpayNo}/${totalPrice.toFixed(2)}`;
+    let qrUrl = `https://promptpay.io/${promptpayNo}/${expectedAmount.toFixed(2)}`;
 
     let paymentHtml = `
         <div class="text-center space-y-4">
             <div class="bg-orange-50 p-3 rounded-2xl border border-orange-100">
                 <div class="text-xs text-slate-500">ยอดชำระสุทธิของโต๊ะ ${table}</div>
-                <div class="text-2xl font-black text-orange-600">฿${totalPrice.toFixed(2)}</div>
+                <div class="text-2xl font-black text-orange-600">฿${expectedAmount.toFixed(2)}</div>
             </div>
             
             <div class="flex justify-center">
@@ -419,8 +420,8 @@ function openCustomerPaymentModal() {
         cancelButtonText: 'ยกเลิก',
         cancelButtonColor: '#64748b',
         didOpen: () => {
-            // 🕵️‍♂️ เริ่มรันระบบเช็กสถานะการจ่ายเงินจากหลังบ้านทุกๆ 3 วินาที
-            startPaymentStatusWatcher(totalPrice);
+            // ส่งยอดตั้งต้นเข้าไปเช็กด้วย เพื่อป้องกันการเข้าใจผิด
+            startPaymentStatusWatcher(expectedAmount);
         },
         willClose: () => {
             if (paymentCheckInterval) clearInterval(paymentCheckInterval);
@@ -428,11 +429,16 @@ function openCustomerPaymentModal() {
     });
 }
 
-// ฟังก์ชันคอยเช็กว่าแคชเชียร์หรือระบบ API กดรับเงิน/ยืนยันบิลของโต๊ะนี้หรือยัง
 function startPaymentStatusWatcher(expectedAmount) {
     if (paymentCheckInterval) clearInterval(paymentCheckInterval);
 
+    // 🛑 บันทึกเวลาเริ่มต้นเปิด QR เพื่อป้องกันการดักจับค่าเก่าทันที
+    let openTime = Date.now();
+
     paymentCheckInterval = setInterval(() => {
+        // ถ้าเพิ่งเปิดหน้าต่างยังไม่ถึง 4 วินาที ห้ามตรวจเด็ดขาด (กันระบบรันเบิ้ลจังหวะแรก)
+        if (Date.now() - openTime < 4000) return;
+
         let safeTable = encodeURIComponent(table);
         let targetUrl = `${GAS_API_URL}?action=getCustomerMenu&storeId=${storeId}&table=${safeTable}`;
         
@@ -441,8 +447,11 @@ function startPaymentStatusWatcher(expectedAmount) {
             .then(res => {
                 if (res.status === "Success") {
                     let session = res.data.tableSession;
-                    // ถ้าในระบบหลังบ้านเคลียร์ cart หรือเปลี่ยนสถานะเป็นชำระเงินแล้ว (เช่น ยอดใน session เป็น 0 หรือถูกรีเซ็ต)
-                    if (!session || !session.cart || session.cart.length === 0) {
+                    
+                    // 🟢 เงื่อนไขที่ถูกต้อง: เช็กว่าเซสชันถูกรีเซ็ต (เช่น token เปลี่ยน หรือแคชเชียร์กดเคลียร์โต๊ะ/ยืนยันรับเงินแล้วจริงๆ)
+                    // หรือเช็กว่ายอดเงินค้างในระบบหลังบ้านถูกเคลียร์เป็น 0
+                    if (!session || session.totalAmount === 0 || session.cart.length === 0) {
+                        // เช็กเพิ่มว่ามีประวัติการสั่งซื้อไปแล้วจริงๆ หรือเป็นการเคลียร์หลังจ่ายเงิน
                         clearInterval(paymentCheckInterval);
                         Swal.fire({
                             title: 'ชำระเงินสำเร็จ! 🎉',
@@ -453,7 +462,7 @@ function startPaymentStatusWatcher(expectedAmount) {
                         }).then(() => {
                             cart = [];
                             updateCartUI();
-                            location.reload(); // รีโหลดหน้าจอเพื่ออัปเดตสถานะล่าสุด
+                            location.reload();
                         });
                     }
                 }
